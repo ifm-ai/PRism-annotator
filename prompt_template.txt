@@ -1,0 +1,388 @@
+You are a PR labeler. You will label ONE PR JSON example along THREE dimensions:
+(1) DOMAIN (single-label or NONE)
+(2) ATTRIBUTES (multi-label; may be empty)
+(3) COMPLEXITY (single-label or NONE)
+
+Use the rubric + scoring rules below. Be evidence-driven and language-agnostic.
+
+=====================
+ALLOWED DOMAIN LABELS
+=====================
+SECURITY_FORENSICS
+DEVOPS_NETWORK_SERVICES
+DATA_ENGINEERING_ETL
+ML_DEEP_LEARNING
+SYSTEMS_EMULATION_VIRTUALIZATION
+COMPILERS_PL_FORMAL_METHODS
+SCIENTIFIC_COMPUTING_MATH
+BIOINFORMATICS_COMP_BIO
+DOCUMENT_IMAGE_VIDEO_PROCESSING
+TEXT_REGEX_EDITING
+GAMES_SIMULATION_MISC_CRAFT
+WEB_FRONTEND_UI
+BACKEND_API_SERVICES
+DATABASE_SQL_ORM
+TESTING_QA_TOOLING
+CLI_DEVELOPER_TOOLING
+MOBILE_EMBEDDED
+GPU_PARALLEL_COMPUTE
+NONE
+
+========================
+ALLOWED ATTRIBUTE LABELS
+========================
+TESTS_INCLUDED
+REPO_ENV_SETUP_IN_REPO
+METRIC_IMPROVEMENT_CLAIMED
+DOCS_ONLY
+VERSION_BUMP_ONLY
+API_SURFACE_CHANGE
+OBSERVABILITY_CHANGE
+SECURITY_FIX
+STYLE_ONLY
+REFACTOR_ONLY
+FEATURE_ADD
+BUGFIX
+GENERATED_ONLY
+
+=========================
+ALLOWED COMPLEXITY LABELS
+=========================
+KNOWLEDGE_HEAVY
+LOGIC_HEAVY
+OBSERVATION_HEAVY
+NONE
+
+====================
+EVIDENCE PRIORITY
+====================
+Use what exists; higher is more trustworthy:
+1) Code evidence: code.touched_files, code.base_files_at_base.path, code.commits[].patch, code.compare_diff
+2) PR text + labels: pull_request.title, pull_request.body, pull_request.labels[].name
+3) Repo metadata: repo.description, repo.language, repo.homepage, repo.full_name
+4) Discussion/CI metadata: events (comments/reviews/check runs/statuses), code.status/context/reason
+
+====================
+SCORING RULES
+====================
+DOMAIN (single-label):
+- For EACH domain, award 1 point for each satisfied rubric bullet.
+- Choose the domain with highest score.
+- If highest score < 3, DOMAIN = NONE.
+- Tie-break: prefer domain supported by (1) code evidence; then (2) PR text/labels; else DOMAIN = NONE.
+- If DATABASE_SQL_ORM and DATA_ENGINEERING_ETL tie: pick DATABASE_SQL_ORM when evidence is about schema/migrations/queries; pick DATA_ENGINEERING_ETL when evidence is about batch pipelines/datasets/resharding/analytics.
+- If DEVOPS_NETWORK_SERVICES and BACKEND_API_SERVICES tie: pick DEVOPS when infra/deploy/runtime config dominates; pick BACKEND when app endpoints/middleware/request handlers dominate.
+- If TEXT_REGEX_EDITING and WEB_FRONTEND_UI tie: pick WEB_FRONTEND_UI when UI components/CSS/browser behavior dominates; pick TEXT_REGEX_EDITING when it is primarily formatting/regex/text transformation tooling.
+
+ATTRIBUTES (multi-label):
+- Score each attribute separately with its rubric bullets (1 point each).
+- Add an attribute if score >= 2 OR if there is a single very high-confidence cue (e.g., DOCS_ONLY clearly true; GENERATED_ONLY clearly true).
+- If no attributes meet threshold, output an empty list [].
+- Consistency guards:
+  * If DOCS_ONLY is selected, do NOT select FEATURE_ADD/BUGFIX/REFACTOR_ONLY/STYLE_ONLY/API_SURFACE_CHANGE (unless the doc explicitly defines a public contract like OpenAPI; otherwise keep DOCS_ONLY alone).
+  * If VERSION_BUMP_ONLY is selected, do NOT select FEATURE_ADD/BUGFIX/REFACTOR_ONLY/STYLE_ONLY (unless clear evidence contradicts “only bump”).
+  * STYLE_ONLY and REFACTOR_ONLY should not co-occur with FEATURE_ADD or BUGFIX unless the PR text explicitly claims behavior change (then drop STYLE_ONLY/REFACTOR_ONLY).
+  * GENERATED_ONLY should usually not co-occur with FEATURE_ADD/BUGFIX unless human-written source changes are clearly present too.
+
+COMPLEXITY (single-label):
+- Score each complexity type; choose highest.
+- If highest complexity score < 2, COMPLEXITY = NONE.
+- Tie-break: prefer LOGIC_HEAVY over KNOWLEDGE_HEAVY over OBSERVATION_HEAVY unless the PR is explicitly about a subtle/rare edge case (then OBSERVATION_HEAVY can win).
+
+====================
+DOMAIN RUBRICS (1 point per bullet)
+====================
+
+SECURITY_FORENSICS:
+- PR is about security hardening or vulnerability remediation (auth, permissions, input validation, secrets, crypto, safe parsing/execution).
+- Changes touch security-sensitive areas (auth/authz flows, validation/sanitization, secret handling, encryption/keys, security headers).
+- PR text/labels explicitly mention security (security fix, vulnerability, CVE/CWE, exploit, XSS/CSRF/SSRF, leak, hardening).
+- Diff removes/mitigates risky behavior (tightens checks, adds validation, prevents injection/execution, reduces secret exposure).
+- Repo context indicates security tooling or security-critical components.
+
+DEVOPS_NETWORK_SERVICES:
+- PR is about deploying/operating/monitoring services (CI/CD, infra, containers, orchestration, reverse proxy, certs/TLS, logging/metrics infra, rate limiting at infra layer).
+- Changes modify infrastructure or deployment/build configuration (pipelines, container files, k8s/helm/terraform/ansible, webserver configs, system services).
+- PR text/labels emphasize ops concerns (deploy, release, reliability, scaling, ports/routing, TLS, observability plumbing).
+- Diff changes runtime configuration/limits/timeouts/resources rather than app features.
+- Repo context is infra/platform/service management.
+
+DATA_ENGINEERING_ETL:
+- PR is about ingesting/transforming/moving data at scale (ETL/ELT, pipelines, schema mapping, partitioning/sharding, batch jobs, analytics outputs).
+- Changes are in pipeline/job/workflow code (DAGs/jobs/transforms/connectors) or dataset layout/serialization.
+- PR text emphasizes data correctness, schema evolution, backfills, aggregation, data quality, pipeline performance.
+- Diff shows dataset manipulation (merges/dedupes/reshards/partitioning/file layout/format conversions).
+- Repo context is analytics/data platform/datasets.
+
+ML_DEEP_LEARNING:
+- PR is about ML models or inference/training (model code, training loops, evaluation, embeddings/tokenization, serving inference).
+- Changes touch model architecture/config, training/eval scripts, inference endpoints, checkpoints/weights.
+- PR text mentions ML metrics/concepts (loss/accuracy/embedding/fine-tune/inference latency/model selection).
+- Diff shows ML framework usage or model-serving patterns.
+- Repo context is ML-focused.
+
+SYSTEMS_EMULATION_VIRTUALIZATION:
+- PR involves system-level runtime behavior or whole-system execution (VMs/emulators, OS boot, images/ISOs, syscalls, terminals/PTYs).
+- Changes touch emulation/virtualization stacks, boot configs, VM networking/console access.
+- PR text mentions booting images, emulation, VM consoles (ssh/telnet/VNC/serial), kernel/system interfaces.
+- Diff uses OS primitives heavily (process control, syscalls, mmap/ioctl/pty/filesystems) in a low-level way.
+- Repo context is systems software / runtime / emulation tooling.
+
+COMPILERS_PL_FORMAL_METHODS:
+- PR is about compilers/interpreters/language tooling or formal verification (parsers, type systems, IR passes, proofs).
+- Changes include proof artifacts or language implementation components (compiler passes, interpreter semantics, grammar/parsing).
+- PR text mentions proof/semantics/type checking/compiler bootstrapping/correctness.
+- Diff changes compilation/interpreting logic or proof steps.
+- Repo context is PL/formal methods.
+
+SCIENTIFIC_COMPUTING_MATH:
+- PR is about numerical/scientific computing (simulation, statistics, optimization, signal processing, numerical stability).
+- Changes include analysis scripts, solvers, statistical models, simulation components, scientific data processing.
+- PR text discusses scientific goals (sampling, inference, fitting, convergence, error bounds, precision).
+- Diff uses numerical/scientific methods and reasoning (optimization loops, statistical routines, solver tuning).
+- Repo context is scientific/research modeling.
+
+BIOINFORMATICS_COMP_BIO:
+- PR is about bio sequences/structures or lab design workflows (DNA/RNA/proteins, primers, plasmids, alignment/annotation, structural biology).
+- Changes include bio formats/pipelines (sequence files, annotation tables, structural references).
+- PR text references bio lab concepts (PCR/primers/cloning/assembly/mutagenesis/protein binding/genomics).
+- Diff includes biological sequence processing or bio constraints (motifs, enzyme sites, GC/Tm, alignments).
+- Repo context is bioinformatics/comp bio.
+
+DOCUMENT_IMAGE_VIDEO_PROCESSING:
+- PR is about processing documents/media (PDF/image/video), OCR, segmentation, extracting structured info from media.
+- Changes include media/document files or media-processing pipelines.
+- PR text mentions OCR, document parsing, invoice extraction, image/video frames, segmentation/masks, classification.
+- Diff uses common media/document processing patterns (frame iteration, image transforms, PDF parsing, OCR/segmentation steps).
+- Repo context is vision/doc/media analytics.
+
+TEXT_REGEX_EDITING:
+- PR is primarily about text manipulation/formatting (regex rules, parsing/rewriting text, documentation build tooling, LaTeX/editor macros).
+- Changes include text rules/configs or heavy string/regex logic.
+- PR text emphasizes formatting/replacements/parsing/rewriting/editorial changes.
+- Diff shows lots of regex/string transforms or large text rewrites rather than algorithmic changes.
+- Repo context is documentation/text tooling.
+
+GAMES_SIMULATION_MISC_CRAFT:
+- PR is about games/simulations/creative compute (rendering, ray tracing, simulation engines, game tooling, craft outputs like gcode).
+- Changes touch game/sim/render pipelines or formats strongly tied to these areas.
+- PR text mentions gameplay/simulation outcomes, rendering frames, performance in a simulator/game environment.
+- Diff implements/tunes simulation mechanics, rendering loops, or artifact generation.
+- Repo context is games/simulation/creative coding.
+
+WEB_FRONTEND_UI:
+- Changes are mainly UI code: components, styling, layout, frontend routing, browser interactions, accessibility.
+- Touched files are predominantly frontend assets or component code (UI component directories, CSS/SCSS, HTML templates, JS/TS UI files, design tokens).
+- PR text mentions UI/UX, styling, responsive design, accessibility, browser behavior, frontend framework concepts.
+- Diff shows component markup and browser-facing logic (DOM interactions, event handlers, client-side state, CSS changes).
+- Labels/repo context indicate frontend/design/UI.
+
+BACKEND_API_SERVICES:
+- Changes are mainly server-side application logic for APIs/services (routes/controllers/handlers/middleware, request/response processing).
+- PR text mentions endpoints, request handling, middleware, serialization, auth flows at the application layer, REST/GraphQL contracts.
+- Diff shows adding/modifying route definitions, handlers, request validation, middleware chains, API response shapes.
+- Touched files align with “api/”, “routes/”, “controllers/”, “handlers/”, “middleware/”, “graphql/”, “openapi/”.
+- Repo context indicates a service/backend application.
+
+DATABASE_SQL_ORM:
+- Changes are mainly database-facing: migrations, schema changes, indexes, SQL queries, ORM models, query builders, transaction logic.
+- PR text mentions migration/schema/index/query optimization/ORM/transaction.
+- Diff includes SQL statements or ORM schema/model edits (tables/columns/constraints/indexes).
+- Touched files suggest DB work (migrations folders, *.sql, schema files, ORM model folders).
+- Repo context indicates a DB-backed application.
+
+TESTING_QA_TOOLING:
+- Changes are primarily to testing infrastructure/tooling (test runners, harnesses, fixtures/mocks utilities, snapshot systems, test config).
+- PR text mentions test infra, flakiness, harness, mocking, CI test setup, or improving test tooling.
+- Diff adds/modifies shared test utilities (helpers, fixtures, mocking layers) more than product logic.
+- Touched files are in testing tooling/config locations (test config files, harness directories, runner scripts).
+- Repo context indicates focus on QA/testing tooling.
+
+CLI_DEVELOPER_TOOLING:
+- PR adds/changes developer tools: CLI commands, build tools, linters/formatters configs, developer scripts, codegen tooling.
+- PR text mentions CLI flags/commands, developer experience, tooling, lint/format/build workflows.
+- Diff shows argument parsing, command definitions, help text, or tooling configs.
+- Touched files suggest CLI/tooling areas (bin/, cli/, cmd/, scripts/, tool configs, make/build scripts) without being deployment-centric.
+- Repo context indicates developer tooling.
+
+MOBILE_EMBEDDED:
+- PR is about mobile apps or embedded/IoT/firmware (mobile UI, app lifecycle, device integrations, firmware builds).
+- Touched files suggest mobile/embedded ecosystems (mobile project structures, platform-specific config/manifests, firmware directories).
+- PR text mentions iOS/Android/mobile app behavior, device hardware, firmware, sensors, BLE, embedded constraints.
+- Diff shows mobile framework code or embedded device-level code.
+- Repo context indicates mobile/embedded.
+
+GPU_PARALLEL_COMPUTE:
+- PR is about GPU/parallel compute performance or kernels/shaders (CUDA/OpenCL/Metal/compute shaders/Triton-kernel style work).
+- Touched files include GPU kernel/shader/parallel compute sources or kernel-focused directories.
+- PR text mentions GPU kernels, parallelism, memory hierarchy, occupancy, vectorization, fusion, warp-level primitives, tensor cores.
+- Diff shows kernel launches, thread/block/grid logic, shared memory usage, low-level parallel tuning.
+- Repo context indicates GPU compute/performance.
+
+====================
+ATTRIBUTE RUBRICS (score each independently; 1 point per bullet)
+====================
+
+TESTS_INCLUDED:
+- Adds/updates test files (test/ specs, *test* naming) or assertions that validate behavior.
+- PR text says tests were added/updated or describes how to test.
+- Diff includes new test cases, fixtures used by tests, or new assertions for the change.
+
+REPO_ENV_SETUP_IN_REPO:
+- Repo contains setup instructions or environment definitions (CONTRIBUTING, README setup, Dockerfile, compose, env files, CI configs, dependency files).
+- Evidence from repo file lists or base files indicates reproducible setup (lockfiles, build scripts, containerization, CI pipeline).
+- PR touches or references these setup files, implying setup is discoverable in-repo.
+
+METRIC_IMPROVEMENT_CLAIMED:
+- PR text claims measurable improvement (speed/latency/memory/throughput/accuracy/benchmark score).
+- PR text includes before/after numbers, percent changes, or benchmark names.
+- Diff includes performance-focused changes with explicit metric discussion in text/reviews.
+
+DOCS_ONLY (high-confidence single cue allowed):
+- All touched files are documentation or prose (docs/, README, *.md/*.rst) and no code files are changed.
+- Diff contains only documentation changes (no executable logic).
+
+VERSION_BUMP_ONLY (high-confidence single cue allowed when obvious):
+- Nearly all touched files are dependency manifests/lockfiles/version pins/release metadata, with no meaningful source-code changes.
+- Diff is dominated by version changes, resolved dependency graphs, or checksums/lockfile churn.
+- PR title/body/labels indicate dependency/version bump automation.
+
+API_SURFACE_CHANGE:
+- Changes public-facing API endpoints/contracts, exported interfaces, SDK surface, CLI flags, or externally consumed schemas.
+- PR text mentions breaking changes, new/changed endpoints, contract updates, or deprecations.
+- Diff updates interface definitions, public methods, route schemas, OpenAPI/GraphQL specs, or wire formats.
+
+OBSERVABILITY_CHANGE:
+- Adds/changes logging, metrics, tracing, instrumentation, dashboards, alerting hooks.
+- PR text mentions logs/metrics/traces/monitoring/observability.
+- Diff adds instrumentation calls, log fields, metric counters, tracing spans, or config for telemetry.
+
+SECURITY_FIX:
+- PR explicitly addresses a vulnerability or hardens auth/permissions/validation (including dependency update explicitly for a security advisory).
+- PR labels/text mention security/CVE/CWE/exploit/hardening.
+- Diff reduces attack surface (validation, sanitization, auth checks, secret handling).
+
+STYLE_ONLY (high-confidence single cue allowed when obvious):
+- Diff is formatting/whitespace/comment/import-order only with no behavioral changes.
+- PR text says “format”, “lint”, “style”, “prettier/formatter”, “no functional changes”.
+
+REFACTOR_ONLY:
+- PR restructures code without intended behavior change (renames/moves, reorganizes modules, simplifies structure).
+- PR text says “refactor”, “cleanup”, “no behavior change”.
+- Diff mostly reorganizes code paths while preserving logic.
+
+FEATURE_ADD:
+- Adds a new user-visible capability, endpoint, UI behavior, supported platform, or new workflow.
+- PR text says “add”, “introduce”, “support”, “implement new”.
+- Diff includes new code paths/modules enabling new behavior.
+
+BUGFIX:
+- Fixes incorrect behavior, edge cases, crashes, wrong outputs, or regressions.
+- PR text says “fix”, “bug”, “regression”, “incorrect”.
+- Diff changes logic to correct behavior, often with a test.
+
+GENERATED_ONLY (high-confidence single cue allowed when obvious):
+- Only generated artifacts changed (generated clients/bindings, compiled outputs, snapshots, vendored generated code).
+- Paths or file headers indicate generated output; changes look machine-produced (large uniform diffs).
+- No hand-written source changes are present.
+
+====================
+COMPLEXITY RUBRICS (1 point per bullet; choose best or NONE)
+====================
+
+KNOWLEDGE_HEAVY:
+- Requires familiarity with established frameworks/platform conventions to implement correctly.
+- PR relies on correct usage of specific APIs/patterns (framework config, ORM semantics, auth flows, UI frameworks, GPU toolchains).
+- Evidence suggests “knowing the right tool/pattern” is central (comments/reviews mention best practices, framework idioms).
+
+LOGIC_HEAVY:
+- Requires careful multi-step reasoning/state management (concurrency, distributed interactions, complex control flow).
+- Changes span multiple interacting files/modules where correctness depends on coordination.
+- Diff introduces nontrivial algorithms, synchronization, protocol/state-machine-like logic.
+
+OBSERVATION_HEAVY:
+- Fix hinges on a key insight/subtle edge case (race condition, rare bug, tricky condition).
+- PR text/reviews mention subtlety, rare reproduction, flakiness, tricky root cause.
+- Small change with large behavioral impact suggests insight-driven fix.
+
+==============================
+OUTPUT FORMAT (EXACT JSON SHAPE)
+==============================
+Return ONE JSON object with exactly these top-level keys:
+- "domain"
+- "attributes"
+- "complexity"
+
+1) "domain" MUST be an object with:
+- "label": one of the DOMAIN labels (including "NONE")
+- "scores": an object with EVERY DOMAIN label as a key and an integer score as value
+- "rationale": 1–3 sentences
+
+2) "attributes" MUST be an object with:
+- "labels": array of zero or more ATTRIBUTE labels ([])
+- "scores": an object with EVERY ATTRIBUTE label as a key and an integer score as value
+- "rationale": 1–3 sentences explaining the chosen attribute labels (or why none)
+
+3) "complexity" MUST be an object with:
+- "label": one of the COMPLEXITY labels (including "NONE")
+- "scores": an object with EVERY COMPLEXITY label as a key and an integer score as value
+- "rationale": 1–3 sentences
+
+EXAMPLE OUTPUT SCHEMA (copy this exact key structure; fill values):
+```json
+{
+  "domain": {
+    "label": "NONE",
+    "scores": {
+      "SECURITY_FORENSICS": 0,
+      "DEVOPS_NETWORK_SERVICES": 0,
+      "DATA_ENGINEERING_ETL": 0,
+      "ML_DEEP_LEARNING": 0,
+      "SYSTEMS_EMULATION_VIRTUALIZATION": 0,
+      "COMPILERS_PL_FORMAL_METHODS": 0,
+      "SCIENTIFIC_COMPUTING_MATH": 0,
+      "BIOINFORMATICS_COMP_BIO": 0,
+      "DOCUMENT_IMAGE_VIDEO_PROCESSING": 0,
+      "TEXT_REGEX_EDITING": 0,
+      "GAMES_SIMULATION_MISC_CRAFT": 0,
+      "WEB_FRONTEND_UI": 0,
+      "BACKEND_API_SERVICES": 0,
+      "DATABASE_SQL_ORM": 0,
+      "TESTING_QA_TOOLING": 0,
+      "CLI_DEVELOPER_TOOLING": 0,
+      "MOBILE_EMBEDDED": 0,
+      "GPU_PARALLEL_COMPUTE": 0,
+      "NONE": 0
+    },
+    "rationale": "Explain why the top domain label won using strongest evidence and why close alternatives lost."
+  },
+  "attributes": {
+    "labels": [],
+    "scores": {
+      "TESTS_INCLUDED": 0,
+      "REPO_ENV_SETUP_IN_REPO": 0,
+      "METRIC_IMPROVEMENT_CLAIMED": 0,
+      "DOCS_ONLY": 0,
+      "VERSION_BUMP_ONLY": 0,
+      "API_SURFACE_CHANGE": 0,
+      "OBSERVABILITY_CHANGE": 0,
+      "SECURITY_FIX": 0,
+      "STYLE_ONLY": 0,
+      "REFACTOR_ONLY": 0,
+      "FEATURE_ADD": 0,
+      "BUGFIX": 0,
+      "GENERATED_ONLY": 0
+    },
+    "rationale": "Explain which attributes were selected and why, or why none met threshold."
+  },
+  "complexity": {
+    "label": "NONE",
+    "scores": {
+      "KNOWLEDGE_HEAVY": 0,
+      "LOGIC_HEAVY": 0,
+      "OBSERVATION_HEAVY": 0,
+      "NONE": 0
+    },
+    "rationale": "Explain why this complexity label fits best."
+  }
+}
